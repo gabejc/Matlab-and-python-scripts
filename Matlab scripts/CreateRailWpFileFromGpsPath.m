@@ -1,7 +1,9 @@
 % Script which will input a .mat log file and output latitude, longitude,
 % altitude from the flight
 
-% Issues: Be wary of the altitude readings from helmet 1
+% Changes
+% With the new wearable, first waypoint should be a regualr spline instead
+% of an auto take off.
 
 
 
@@ -9,15 +11,22 @@
 clear trueTrack gpsTrack
 close all
 
-latitude=GPS(2:end,7); longitude=GPS(2:end,8); altitude=GPS(2:end,9); % note, chopping off the first point
+latitude=GPS(:,7); longitude=GPS(:,8); altitude=GPS(:,9); 
+disp(sprintf('Number of (0,0) gps coords: %i ',sum(latitude==0)))
+
+% First entry(ies) are sometimes 0. Remove these
+fNZI=find(latitude~=0,1); % first non-zero index
+latitude=latitude(fNZI:end); longitude=longitude(fNZI:end); altitude=altitude(fNZI:end); % trimming 0 entries
+% latitude=GPS(2:end,7); longitude=GPS(2:end,8); altitude=GPS(2:end,9); % note, chopping off the first point
 gpsTrack=[latitude,longitude,altitude]; % vary of innacurate barometer (table top testing varied by 8m)
 i=1;j=1;k=1;
-% i2=1;
+i2=1;
 % bool=true;
 pt1=[gpsTrack(1,1),gpsTrack(1,2)];
-distThreshold=20; % waypoints spaced this 3D distance apart
-eps=2; % distThreshold +/- eps
-trueTrack(1:2,:)=gpsTrack(1:2,:); % initialize first points of the rail
+wpSpacedDist=75; % waypoints spaced this 3D distance apart
+eps=2; % wpSpacedDist +/- eps
+disp(sprintf('Waypoints %i plus/minus %i meters apart',wpSpacedDist, eps))
+trueTrack(1:2,:)=gpsTrack(1:2,:); % initialize first points of the rail (0 home, 1 takeoff)
 k=k+2;
 bool=true;
 while bool==true
@@ -26,8 +35,8 @@ while bool==true
         pt2=gpsTrack(j,:);
         horizDist=GPScalculateDistance(pt1(1:2),pt2(1:2));
         vertDist=abs(pt1(3)-pt2(3));
-        dist=sqrt(horizDist^2+vertDist^2);
-        if (dist<(distThreshold+eps) && dist>(distThreshold-eps) && j~=length(gpsTrack))
+        dist=sqrt(horizDist^2+vertDist^2)
+        if (dist<(wpSpacedDist+eps) && dist>(wpSpacedDist-eps) && j~=length(gpsTrack))
             i=j;
             trueTrack(k,:)=gpsTrack(j,:);
             k=k+1;
@@ -47,22 +56,23 @@ xlabel('Latitude'); ylabel('Longitude'); title('Flight path')
 % figure(2); plot(latitude,altitude); hold on; plot(trueTrack(:,1),trueTrack(:,3),'r*')
 
 autocontinue=1; % always autocontinue
-heightOffset=20; % Meters above the ground we want to fly
+heightOffset=15; % Meters above the ground we want to fly
+disp(sprintf('Height above ground: %i ',heightOffset))
 trueTrack(2:end,3)=trueTrack(2:end,3)+heightOffset;
 
 delete('RailWpPath.txt'); % so I don't keep writing on top
 fid=fopen('RailWpPath.txt','at');
-fprintf(fid,'QGC WPL 110\n');
+fprintf(fid,'QGC WPL 110\n'); % Formatting
 for i=1:size(trueTrack,1) % note: wp's start indexing from 0
     index=i-1;
     if index==0 % home waypoint
         currentWp=1; coordFrame=0; command=16; param1=0; param2=0; param3=0; param4=0;
-        trueTrack(i,3)=GPS(2,10); % Set home altitude to be absolute (as MP does it) % note 2
-    elseif index==1 % auto takeoff
-        currentWp=0; coordFrame=3; command=22; param1=0; param2=0; param3=0; param4=0;
+        trueTrack(i,3)=GPS(fNZI,10); % Set home altitude to be absolute (as MP does it)
+%     elseif index==1 % auto takeoff
+%         currentWp=0; coordFrame=3; command=22; param1=0; param2=0; param3=0; param4=0;
     elseif index==size(trueTrack,1)-1 % land
         currentWp=0; coordFrame=3; command=21; param1=0; param2=0; param3=0; param4=0;
-    else
+    else % spline waypoint
         currentWp=0; coordFrame=3; command=82; param1=3000; param2=0; param3=1; param4=0; % not sure why param3=1, online says empty
     end
     fprintf(fid,'%i\t%i\t%i\t%i\t%.8f\t%.8f\t%.8f\t%.8f\t%.8f\t%.8f\t%.8f\t%i\n',...
@@ -80,7 +90,7 @@ fclose(fid);
 % WP 1 is auto-takeoff
 % WP last is land
 
-% Relevant commands see (https://pixhawk.ethz.ch/mavlink/)
+% Relevant commands see (https://pixhawk.ethz.ch/mavlink/) / ardupilotmega.h
 % 16: waypoint_nav, also used for takeoff
 % 17: loiter_unlim
 % 20: RTL
