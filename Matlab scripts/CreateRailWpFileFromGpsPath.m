@@ -23,7 +23,7 @@ i=1;j=1;k=1;
 i2=1;
 % bool=true;
 pt1=[gpsTrack(1,1),gpsTrack(1,2)];
-wpSpacedDist=75; % waypoints spaced this 3D distance apart
+wpSpacedDist=30; % waypoints spaced this 3D distance apart
 eps=2; % wpSpacedDist +/- eps
 disp(sprintf('Waypoints %i plus/minus %i meters apart',wpSpacedDist, eps))
 trueTrack(1:2,:)=gpsTrack(1:2,:); % initialize first points of the rail (0 home, 1 takeoff)
@@ -68,8 +68,9 @@ for i=1:size(trueTrack,1) % note: wp's start indexing from 0
     if index==0 % home waypoint
         currentWp=1; coordFrame=0; command=16; param1=0; param2=0; param3=0; param4=0;
         trueTrack(i,3)=GPS(fNZI,10); % Set home altitude to be absolute (as MP does it)
-%     elseif index==1 % auto takeoff
+    elseif index==1 % spline, but don't wait at wp1
 %         currentWp=0; coordFrame=3; command=22; param1=0; param2=0; param3=0; param4=0;
+        currentWp=0; coordFrame=3; command=82; param1=0; param2=0; param3=1; param4=0; % not sure why param3=1, online says empty
     elseif index==size(trueTrack,1)-1 % land
         currentWp=0; coordFrame=3; command=21; param1=0; param2=0; param3=0; param4=0;
     else % spline waypoint
