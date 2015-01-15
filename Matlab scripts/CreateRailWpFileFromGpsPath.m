@@ -35,7 +35,7 @@ while bool==true
         pt2=gpsTrack(j,:);
         horizDist=GPScalculateDistance(pt1(1:2),pt2(1:2));
         vertDist=abs(pt1(3)-pt2(3));
-        dist=sqrt(horizDist^2+vertDist^2)
+        dist=sqrt(horizDist^2+vertDist^2);
         if (dist<(wpSpacedDist+eps) && dist>(wpSpacedDist-eps) && j~=length(gpsTrack))
             i=j;
             trueTrack(k,:)=gpsTrack(j,:);

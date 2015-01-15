@@ -1,6 +1,8 @@
 % Store releveant variables
 close all;
 
+% Altered custom packet a bit
+
 % Labels
 % Att: attitude info, desired vs actual attitude information
 % Camera: time and position when camera shutte was activated
@@ -32,7 +34,12 @@ attTime=ATT(:,2); DesRoll=ATT(:,3); Roll=ATT(:,4); DesPitch=ATT(:,5); Pitch=ATT(
 DesYaw=ATT(:,7); Yaw=ATT(:,8);
 
 % CMD
-cmdLat=CMD(:,10); cmdLon=CMD(:,11); cmdAlt=CMD(:,end);
+if exist('CMD')
+    cmdLat=CMD(:,10); cmdLon=CMD(:,11); cmdAlt=CMD(:,end);
+else
+    disp('No CMDs found')
+    cmdLat=0; cmdLon=0; cmdAlt=0;
+end
 
 % MODE
 controlMode=MODE(:,2);
@@ -63,7 +70,7 @@ else
 end
 
 % IMU
-AccX=IMU(:,6); AccY=IMU(:,7); AccZ=IMU(:,8);
+imuTime=IMU(:,2); AccX=IMU(:,6); AccY=IMU(:,7); AccZ=IMU(:,8);
 
 % PM
 NLon=PM(:,2); NLoop=PM(:,3);
@@ -75,6 +82,7 @@ ATC_SLEW_YAW=Parameters{strcmp(Parameters(:,1),'ATC_SLEW_YAW'),2};
 BAROGLTCH_ENABLE=Parameters{strcmp(Parameters(:,1),'BAROGLTCH_ENABLE'),2};
 BAROGLTCH_ACCEL=Parameters{strcmp(Parameters(:,1),'BAROGLTCH_ACCEL'),2};
 BAROGLTCH_DIST=Parameters{strcmp(Parameters(:,1),'BAROGLTCH_DIST'),2};
+BATT_CAPACITY=Parameters{strcmp(Parameters(:,1),'BATT_CAPACITY'),2};
 INAV_TC_Z=Parameters{strcmp(Parameters(:,1),'INAV_TC_Z'),2};
 WP_YAW_BEHAVIOR=Parameters{strcmp(Parameters(:,1),'WP_YAW_BEHAVIOR'),2};
 WPNAV_ACCEL=Parameters{strcmp(Parameters(:,1),'WPNAV_ACCEL'),2};
@@ -84,13 +92,54 @@ WPNAV_SPEED_DN=Parameters{strcmp(Parameters(:,1),'WPNAV_SPEED_DN'),2};
 WPNAV_SPEED_UP=Parameters{strcmp(Parameters(:,1),'WPNAV_SPEED_UP'),2};
 
 % Radio
-% RSSI=RAD(:,3); RemRSSI=RAD(:,4); RxErrors=RAD(:,8);
+if exist('RAD')
+    RSSI=RAD(:,3); RemRSSI=RAD(:,4); RxErrors=RAD(:,8);
+else
+    RSSI=999; RemRSSI=999; RxErrors=999;
+end
+
+% RCIN - RC input
+rcInTime=RCIN(:,2);
+rollInput=RCIN(:,3);
+pitchInput=RCIN(:,4);
+throttleInput=RCIN(:,5);
+yawInput=RCIN(:,6);
+
+% RCOU - RC output
+rcOutTime=RCOU(:,2);
+rollOutput=RCOU(:,3);
+pitchOutput=RCOU(:,4);
+throttleOutput=RCOU(:,5);
+yawOutput=RCOU(:,6);
+
+
+% To test if transmitter/pilot influenced flight / caused crash
+% figure; plot(rcInTime,rollInput,rcInTime,rollOutput); ylabel('Roll'); legend('Input','Output')
+% figure; plot(rcInTime,pitchInput,rcInTime,pitchOutput); ylabel('Pitch'); legend('Input','Output')
+% figure; plot(rcInTime,throttleInput,rcInTime,throttleOutput); ylabel('Throttle'); legend('Input','Output')
+
 
 
 % CUST
-custTime=CUST(:,2); CM=CUST(:,3); WpDist=CUST(:,5)/100; roiX=CUST(:,7); roiY=CUST(:,8); roiZ=CUST(:,9);
-custBarAlt=CUST(:,10); custLat=CUST(:,11); custLon=CUST(:,12); custInAlt=CUST(:,13); rtl_state=CUST(:,14); 
-cust_cur_tot=CUST(:,15);
+if exist('CUST')
+    custTime=CUST(:,2); CM=CUST(:,3); WpDist=CUST(:,4)/100; roiX=CUST(:,5); roiY=CUST(:,6); roiZ=CUST(:,7);
+    custLat=CUST(:,8); custLon=CUST(:,9); custInAlt=CUST(:,10);
+    cust_cur_tot=CUST(:,11); DtP=CUST(:,12);
+else
+    disp('Warning, no custom logs')
+    custTime=0; CM=0; WpDist=0; roiX=0; roiY=0; roiZ=0;
+    custLat=0; custLon=0; custInAlt=0; cust_cur_tot=0;
+end
+
+% Remove 0 points
+latitude2=latitude(find(latitude~=0));
+longitude2=longitude(find(longitude~=0));
+roiX2=roiX(find(roiX~=0));
+roiY2=roiY(find(roiY~=0));
+roiZ2=roiZ(find(roiZ~=0));
+custLat2=custLat(find(custLat~=0));
+custLon2=custLat(find(custLat~=0));
+
 % rtl_state: 1=Initial climb, 2=Return home, 3=loiter at home, 4=final
 % descent, 5=land
 
@@ -130,6 +179,7 @@ t1=roiX(2:end)-roiX(1:end-1)==0;
 t2=roiY(2:end)-roiY(1:end-1)==0;
 t3=[t1,t2]; t4=sum(t3')';
 percentNotUpdated=sum(t4==2)/size(t4,1)*100;
+fprintf('Percent roi not updated %f: \n',percentNotUpdated);
 
 
 % % battery stuff
@@ -143,8 +193,8 @@ percentDownhill=timeTillBottom/totalTime;
 totalCurrentDraw=CurrTot(end);
 
 % Radio stuff
-% avgRSSI=mean(RSSI); timesLostRSSI=sum(RSSI==0);
-% avgRemRSSI=mean(RemRSSI); timesLostRemRSSI=sum(RemRSSI==0);
+avgRSSI=mean(RSSI); timesLostRSSI=sum(RSSI==0);
+avgRemRSSI=mean(RemRSSI); timesLostRemRSSI=sum(RemRSSI==0);
 
 % Finding voltage draw downhill vs climb vs return
 val=cust_cur_tot(custInAlt==min(custInAlt))/cust_cur_tot(end);
@@ -152,7 +202,7 @@ val=cust_cur_tot(custInAlt==min(custInAlt))/cust_cur_tot(end);
 % ind1=find(BarAlt==min(BarAlt)); % index where drone reaches bottom
 % percentThroughRun=ind1/size(BarAlt,1);
 % ind2=round(percentThroughRun*size(CurrTot,1));
-% curDrained=CurrTot(ind2);
+% curDrained=CurrTot(ind2);Ric
 % pcurDrained=curDrained/CurrTot(end)
 
 %% Logging params
@@ -168,10 +218,10 @@ val=cust_cur_tot(custInAlt==min(custInAlt))/cust_cur_tot(end);
 % - fused altitude + barometer reading?
 
 % Current/battery stuff
-battCapacity=6000; % 6000 mAh for the x8
+% battCapacity=6000; % 6000 mAh for the x8
 EndingVoltage=min(Volt);
 currentDrained=CurrTot(end);
-percentCurrentUsed=currentDrained/(battCapacity*0.8); % assuming we don't want to drain more than 80%
+percentCurrentUsed=currentDrained/(BATT_CAPACITY*0.8); % assuming we don't want to drain more than 80%
 
 % Baro
 Pressure=BARO(:,4);
@@ -271,6 +321,10 @@ distStartToEnd=GPScalculateDistance([cmdLat(1),cmdLon(1)],[cmdLat(end),cmdLon(en
 maxAboveAltDif=max(AltDif);
 maxBelowAltDif=min(AltDif);
 
+altitudeDrop=abs(min(cmdAlt));
+slopeOfRun=altitudeDrop/distStartToEnd;
+disp(sprintf('Slope of run: %f',slopeOfRun))
+
 % % Error messages
 % errExist=sum(strcmp(fieldnames(openFile),'ERR')); % 1 if there is an error message
 % if errExist
@@ -295,17 +349,37 @@ maxBelowAltDif=min(AltDif);
 figure; plot(attTime,DesPitch,attTime,Pitch)
 legend('Desired pitch','Actual pitch')
 
+% Accelerations
+figure; plot(imuTime,AccX,imuTime,AccY,imuTime,AccZ)
+legend('X','Y','Z'); title('Vibrations')
+
+% Compass
+magTime=MAG(:,2); MagX=MAG(:,3); MagY=MAG(:,4); MagZ=MAG(:,5);
+magNorm=sqrt(MagX.^2+MagY.^2+MagZ.^2);
+figure; plot(magNorm);
+title('Compass performance')
+
+
 % Region of interest
-figure; plot(roiX,roiY,'*r') % plotting discretized shows how often
-title('Region of interest'); ylabel('latitude'); xlabel('longitude');
-% region of interest is being updated
+if abs(sum(roiX))>0 % if the helmet is on
+    followingASkier=1; % boolean
+else
+    followingASkier=0;
+end
+if followingASkier % if we're following a skier
+    figure; plot(roiX2,roiY2,'*r') % plotting discretized shows how often region of interest is being updated
+    title('Region of interest'); ylabel('latitude'); xlabel('longitude');
+end
 
-% % Distance from skier
-figure;
-plot(custTime,hDistance,custTime,vDistance,custTime,distSkierToDrone)
-title('Distances of skier from drone')
-legend('Horizontal distance','Vertical distance','Net distance')
 
+
+% % % Distance from skier
+% if followingASkier
+%     figure;
+%     plot(custTime,hDistance,custTime,vDistance,custTime,distSkierToDrone)
+%     title('Distances of skier from drone')
+%     legend('Horizontal distance','Vertical distance','Net distance')
+% end
 
 % % Speed
 % figure; plot(gpsTime,netSpeed); title ('speed')
@@ -322,7 +396,8 @@ legend('Horizontal distance','Vertical distance','Net distance')
 % % % [truncWpDist(2:end),speedBetweenWaypoints]
 % 
 % % Track follow with waypoints. 
-figure; plot(cmdLat,cmdLon,'*'); hold on; plot(latitude,longitude)
+% latitude2(109)=latitude2(108);
+figure; plot(cmdLat,cmdLon,'*'); hold on; plot(latitude2,longitude2)
 title('Drone lat lon flight path')
 % % figure; plot(cmdLat,cmdLon,'*'); hold on; plot(custLat,custLon)
 % figure; plot(cmdLat(1:end-1),cmdLon(1:end-1),'*'); hold on; plot(latitude,longitude) % last one at 0,0
@@ -340,6 +415,11 @@ title('Drone lat lon flight path')
 % % % drone is being set to the next wp when its still like 20m from its
 % % % target....should be 2m....unit issue somewhere?
 % 
+
+% figure; plot(gpsTime,vel_z,gpsTime,horizSpeed)
+% title('Horizontal and vertical speeds')
+% legend('Vertical','Horizontal')
+
 % % Actual vs commanded altitude (baro and LRF)
 figure; plot(ctunTime,Dalt,ctunTime,inavAlt); legend('Desired','Fused');%,'LRF')
 title('Drone altitude')
@@ -354,6 +434,10 @@ figure; plot(custLat,custInAlt,'k'); hold on;
 plot(cmdLat(2:end),cmdAlt(2:end),'r'); plot(cmdLat(2:end),cmdAlt(2:end),'b*')
 legend('Actual path','Interpolated commanded path'); title('Altitude vs latitude')
 ylabel('Altitude (m)')
+
+figure; plot(custTime,DtP/100);
+title('Distance to plane')
+ylabel('Meters (m)'); xlabel('Time')
 
 % % Battery stuff
 % figure; plot(currTime,Curr,currTime,CurrTot)
